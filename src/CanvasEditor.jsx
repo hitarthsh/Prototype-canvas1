@@ -13,6 +13,11 @@ import {
   FaAlignLeft,
   FaAlignCenter,
   FaAlignRight,
+  FaLayerGroup,
+  FaEye,
+  FaEyeSlash,
+  FaLock,
+  FaUnlock,
 } from "react-icons/fa";
 import { Tooltip } from "react-tooltip";
 import {
@@ -24,10 +29,313 @@ import {
   Image as FabricImage,
 } from "fabric";
 
+const LayerPanel = ({ canvas, onLayerUpdate }) => {
+  const [layers, setLayers] = useState([]);
+  const [autoLayer, setAutoLayer] = useState(false);
+
+  useEffect(() => {
+    if (!canvas) return;
+
+    const updateLayers = () => {
+      const objects = canvas.getObjects();
+      let sortedObjects = [...objects];
+
+      if (autoLayer) {
+        // Sort objects by type and creation time
+        sortedObjects.sort((a, b) => {
+          // First sort by type
+          const typeOrder = {
+            textbox: 0,
+            rect: 1,
+            circle: 2,
+            image: 3,
+          };
+
+          const typeA = typeOrder[a.type] ?? 999;
+          const typeB = typeOrder[b.type] ?? 999;
+
+          if (typeA !== typeB) {
+            return typeA - typeB;
+          }
+
+          // If same type, sort by creation time (newer on top)
+          return (b.timestamp || 0) - (a.timestamp || 0);
+        });
+      }
+
+      setLayers(
+        sortedObjects.map((obj, index) => ({
+          id: obj.id || `layer-${index}`,
+          name: obj.type || "Layer",
+          visible: !obj.invisible,
+          locked: obj.selectable === false,
+          object: obj,
+        }))
+      );
+    };
+
+    canvas.on("object:added", updateLayers);
+    canvas.on("object:removed", updateLayers);
+    canvas.on("object:modified", updateLayers);
+
+    updateLayers();
+
+    return () => {
+      canvas.off("object:added", updateLayers);
+      canvas.off("object:removed", updateLayers);
+      canvas.off("object:modified", updateLayers);
+    };
+  }, [canvas, autoLayer]);
+
+  const toggleVisibility = (layer) => {
+    layer.object.set("invisible", !layer.object.invisible);
+    canvas.renderAll();
+    onLayerUpdate();
+  };
+
+  const toggleLock = (layer) => {
+    layer.object.set("selectable", layer.object.selectable === false);
+    canvas.renderAll();
+    onLayerUpdate();
+  };
+
+  const moveLayer = (index, direction) => {
+    const object = layers[index].object;
+    const objects = canvas.getObjects();
+    const currentIndex = objects.indexOf(object);
+    const newIndex = direction === -1 ? currentIndex + 1 : currentIndex - 1;
+
+    if (newIndex >= 0 && newIndex < objects.length) {
+      // Remove object from current position
+      canvas.remove(object);
+      // Add it back at the new position
+      canvas.add(object);
+      canvas.renderAll();
+      onLayerUpdate();
+    }
+  };
+
+  const toggleAutoLayer = () => {
+    setAutoLayer(!autoLayer);
+    if (!autoLayer) {
+      // When enabling auto-layer, reorganize all objects
+      const objects = canvas.getObjects();
+      // Remove all objects
+      objects.forEach((obj) => canvas.remove(obj));
+      // Sort objects by type and add them back
+      objects.sort((a, b) => {
+        // First sort by type
+        const typeOrder = {
+          textbox: 0,
+          rect: 1,
+          circle: 2,
+          image: 3,
+        };
+
+        const typeA = typeOrder[a.type] ?? 999;
+        const typeB = typeOrder[b.type] ?? 999;
+
+        if (typeA !== typeB) {
+          return typeA - typeB;
+        }
+
+        // If same type, sort by creation time (newer on top)
+        return (b.timestamp || 0) - (a.timestamp || 0);
+      });
+
+      // Add objects back in sorted order
+      objects.forEach((obj) => {
+        canvas.add(obj);
+        // Ensure each object has a timestamp if it doesn't
+        if (!obj.timestamp) {
+          obj.timestamp = Date.now();
+        }
+      });
+
+      canvas.renderAll();
+      onLayerUpdate();
+    }
+  };
+
+  // Add timestamp to new objects
+  useEffect(() => {
+    if (!canvas) return;
+
+    const addTimestamp = (e) => {
+      if (!e.target.timestamp) {
+        e.target.timestamp = Date.now();
+      }
+    };
+
+    canvas.on("object:added", addTimestamp);
+    return () => {
+      canvas.off("object:added", addTimestamp);
+    };
+  }, [canvas]);
+
+  // Update layer order when auto-layer is enabled
+  useEffect(() => {
+    if (!canvas || !autoLayer) return;
+
+    const updateLayerOrder = () => {
+      const objects = canvas.getObjects();
+      // Remove all objects
+      objects.forEach((obj) => canvas.remove(obj));
+      // Sort objects by type and add them back
+      objects.sort((a, b) => {
+        // First sort by type
+        const typeOrder = {
+          textbox: 0,
+          rect: 1,
+          circle: 2,
+          image: 3,
+        };
+
+        const typeA = typeOrder[a.type] ?? 999;
+        const typeB = typeOrder[b.type] ?? 999;
+
+        if (typeA !== typeB) {
+          return typeA - typeB;
+        }
+
+        // If same type, sort by creation time (newer on top)
+        return (b.timestamp || 0) - (a.timestamp || 0);
+      });
+
+      // Add objects back in sorted order
+      objects.forEach((obj) => canvas.add(obj));
+      canvas.renderAll();
+    };
+
+    canvas.on("object:added", updateLayerOrder);
+    canvas.on("object:removed", updateLayerOrder);
+    canvas.on("object:modified", updateLayerOrder);
+
+    return () => {
+      canvas.off("object:added", updateLayerOrder);
+      canvas.off("object:removed", updateLayerOrder);
+      canvas.off("object:modified", updateLayerOrder);
+    };
+  }, [canvas, autoLayer]);
+
+  return (
+    <div className="w-64 bg-white border-l p-4 overflow-y-auto">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-gray-700">Layers</h3>
+        <div className="flex gap-2">
+          <button
+            className={`p-2 rounded-lg transition-colors ${
+              autoLayer
+                ? "bg-red-50 text-red-500"
+                : "hover:bg-gray-100 text-gray-600"
+            }`}
+            onClick={toggleAutoLayer}
+            title="Toggle Auto Layer"
+          >
+            <FaLayerGroup className="text-current" />
+          </button>
+          <button
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            onClick={() => {
+              const activeObject = canvas.getActiveObject();
+              if (activeObject) {
+                canvas.remove(activeObject);
+                canvas.add(activeObject);
+                canvas.renderAll();
+                onLayerUpdate();
+              }
+            }}
+            title="Bring to Front"
+          >
+            <FaLayerGroup className="text-gray-600" />
+          </button>
+          <button
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            onClick={() => {
+              const activeObject = canvas.getActiveObject();
+              if (activeObject) {
+                const objects = canvas.getObjects();
+                canvas.remove(activeObject);
+                // Add all objects back in reverse order
+                objects.reverse().forEach((obj) => {
+                  if (obj !== activeObject) {
+                    canvas.add(obj);
+                  }
+                });
+                canvas.add(activeObject);
+                canvas.renderAll();
+                onLayerUpdate();
+              }
+            }}
+            title="Send to Back"
+          >
+            <FaLayerGroup className="text-gray-600 rotate-180" />
+          </button>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {layers.map((layer, index) => (
+          <div
+            key={layer.id}
+            className={`flex items-center justify-between p-2 rounded-lg ${
+              canvas.getActiveObject() === layer.object
+                ? "bg-red-50 border border-red-200"
+                : "bg-gray-50"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => toggleVisibility(layer)}
+                className="p-1 hover:bg-gray-200 rounded transition-colors"
+              >
+                {layer.visible ? (
+                  <FaEye className="text-gray-600" />
+                ) : (
+                  <FaEyeSlash className="text-gray-400" />
+                )}
+              </button>
+              <button
+                onClick={() => toggleLock(layer)}
+                className="p-1 hover:bg-gray-200 rounded transition-colors"
+              >
+                {layer.locked ? (
+                  <FaLock className="text-gray-600" />
+                ) : (
+                  <FaUnlock className="text-gray-400" />
+                )}
+              </button>
+              <span className="text-sm font-medium">{layer.name}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => moveLayer(index, -1)}
+                disabled={index === layers.length - 1 || autoLayer}
+                className="p-1 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
+                title="Move Up"
+              >
+                ↑
+              </button>
+              <button
+                onClick={() => moveLayer(index, 1)}
+                disabled={index === 0 || autoLayer}
+                className="p-1 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
+                title="Move Down"
+              >
+                ↓
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const CanvasEditor = () => {
   const canvasRef = useRef(null);
   const fabricRef = useRef(null);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
+  const [showLayers, setShowLayers] = useState(true);
 
   // Initialize Fabric.js
   useEffect(() => {
@@ -48,22 +356,6 @@ const CanvasEditor = () => {
           height: 500,
           backgroundColor: "#fff",
         });
-
-        // Remove selection event listeners
-        // canvas.on("selection:created", (e) => {
-        //   console.log("Selection created:", e.target);
-        //   setSelectedObject(e.target);
-        // });
-
-        // canvas.on("selection:updated", (e) => {
-        //   console.log("Selection updated:", e.target);
-        //   setSelectedObject(e.target);
-        // });
-
-        // canvas.on("selection:cleared", () => {
-        //   console.log("Selection cleared");
-        //   setSelectedObject(null);
-        // });
 
         fabricRef.current = canvas;
         setIsCanvasReady(true);
@@ -341,117 +633,96 @@ const CanvasEditor = () => {
   };
 
   return (
-    <div className="flex flex-col items-center gap-4 w-full">
-      {/* Toolbar */}
-      <div className="w-full max-w-4xl mx-auto flex items-center justify-center gap-3 bg-white rounded shadow px-4 py-2">
-        <div className="flex items-center gap-3">
+    <div className="flex h-full">
+      <div className="flex-1 flex flex-col">
+        <div className="flex items-center gap-3 bg-white rounded-lg shadow-sm p-2 mb-4">
           <button
             onClick={handleAddText}
-            className="p-2 rounded-lg hover:bg-blue-50 transition"
-            title="Add Text"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            data-tooltip-id="text-tooltip"
+            data-tooltip-content="Add Text"
           >
-            <FaFont size={20} className="text-blue-600" />
+            <FaFont className="text-gray-600" />
           </button>
           <button
             onClick={handleAddRect}
-            className="p-2 rounded-lg hover:bg-purple-50 transition"
-            title="Add Rectangle"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            data-tooltip-id="rect-tooltip"
+            data-tooltip-content="Add Rectangle"
           >
-            <FaSquareFull size={20} className="text-purple-600" />
+            <FaSquareFull className="text-gray-600" />
           </button>
           <button
             onClick={handleAddCircle}
-            className="p-2 rounded-lg hover:bg-green-50 transition"
-            title="Add Circle"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            data-tooltip-id="circle-tooltip"
+            data-tooltip-content="Add Circle"
           >
-            <FaCircle size={20} className="text-green-600" />
-          </button>
-          <label
-            className="p-2 rounded-lg hover:bg-orange-50 transition cursor-pointer"
-            title="Upload Image"
-          >
-            <FaImage size={20} className="text-orange-600" />
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="hidden"
-            />
-          </label>
-        </div>
-
-        <div className="h-6 w-px bg-gray-200 mx-4" />
-
-        {/* Text Formatting Toolbar */}
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => handleTextFormat("bold")}
-            className="p-2 rounded-lg hover:bg-gray-50 transition"
-            title="Bold"
-          >
-            <FaBold size={16} className="text-gray-600" />
+            <FaCircle className="text-gray-600" />
           </button>
           <button
-            onClick={() => handleTextFormat("italic")}
-            className="p-2 rounded-lg hover:bg-gray-50 transition"
-            title="Italic"
+            onClick={() => document.getElementById("imageUpload").click()}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            data-tooltip-id="image-tooltip"
+            data-tooltip-content="Upload Image"
           >
-            <FaItalic size={16} className="text-gray-600" />
+            <FaImage className="text-gray-600" />
           </button>
-          <button
-            onClick={() => handleTextFormat("underline")}
-            className="p-2 rounded-lg hover:bg-gray-50 transition"
-            title="Underline"
-          >
-            <FaUnderline size={16} className="text-gray-600" />
-          </button>
+          <input
+            type="file"
+            id="imageUpload"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
           <div className="h-6 w-px bg-gray-200 mx-2" />
           <button
-            onClick={() => handleTextFormat("alignLeft")}
-            className="p-2 rounded-lg hover:bg-gray-50 transition"
-            title="Align Left"
-          >
-            <FaAlignLeft size={16} className="text-gray-600" />
-          </button>
-          <button
-            onClick={() => handleTextFormat("alignCenter")}
-            className="p-2 rounded-lg hover:bg-gray-50 transition"
-            title="Align Center"
-          >
-            <FaAlignCenter size={16} className="text-gray-600" />
-          </button>
-          <button
-            onClick={() => handleTextFormat("alignRight")}
-            className="p-2 rounded-lg hover:bg-gray-50 transition"
-            title="Align Right"
-          >
-            <FaAlignRight size={16} className="text-gray-600" />
-          </button>
-        </div>
-
-        <div className="h-6 w-px bg-gray-200 mx-4" />
-
-        <div className="flex items-center gap-3">
-          <button
             onClick={handleDelete}
-            className="p-2 rounded-lg hover:bg-red-50 transition"
-            title="Delete"
+            className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+            data-tooltip-id="delete-tooltip"
+            data-tooltip-content="Delete Selected"
           >
-            <FaTrash size={20} className="text-red-500" />
+            <FaTrash className="text-red-500" />
           </button>
           <button
             onClick={handleExport}
-            className="p-2 rounded-lg hover:bg-green-50 transition"
-            title="Export PNG"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            data-tooltip-id="export-tooltip"
+            data-tooltip-content="Export Design"
           >
-            <FaDownload size={20} className="text-green-600" />
+            <FaDownload className="text-gray-600" />
+          </button>
+          <div className="flex-1" />
+          <button
+            onClick={() => setShowLayers(!showLayers)}
+            className={`p-2 rounded-lg transition-colors ${
+              showLayers
+                ? "bg-red-50 text-red-500"
+                : "hover:bg-gray-100 text-gray-600"
+            }`}
+            data-tooltip-id="layers-tooltip"
+            data-tooltip-content="Toggle Layers Panel"
+          >
+            <FaLayerGroup />
           </button>
         </div>
+        <div className="flex-1 bg-white rounded-lg shadow-sm overflow-hidden">
+          <canvas ref={canvasRef} />
+        </div>
       </div>
-      {/* Canvas Container */}
-      <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 flex items-center justify-center w-full max-w-4xl h-[500px]">
-        <canvas ref={canvasRef} />
-      </div>
+      {showLayers && (
+        <LayerPanel
+          canvas={fabricRef.current}
+          onLayerUpdate={() => fabricRef.current?.renderAll()}
+        />
+      )}
+      <Tooltip id="text-tooltip" />
+      <Tooltip id="rect-tooltip" />
+      <Tooltip id="circle-tooltip" />
+      <Tooltip id="image-tooltip" />
+      <Tooltip id="delete-tooltip" />
+      <Tooltip id="export-tooltip" />
+      <Tooltip id="layers-tooltip" />
     </div>
   );
 };
