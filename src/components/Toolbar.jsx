@@ -77,20 +77,7 @@ const Toolbar = ({
           >
             <FaTrash />
           </button>
-          <button
-            onClick={onUndo}
-            className="p-2 hover:bg-gray-100 rounded-lg bg-cyan-200"
-            title="Undo"
-          >
-            <FaUndo className="text-gray-600" />
-          </button>
-          <button
-            onClick={onRedo}
-            className="p-2 hover:bg-gray-100 rounded-lg bg-cyan-200"
-            title="Redo"
-          >
-            <FaRedo className="text-gray-600" />
-          </button>
+        
           <div className="relative">
             <button
               onClick={() => setShowExportMenu(!showExportMenu)}

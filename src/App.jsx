@@ -62,7 +62,6 @@ const App = () => {
               <span className="font-medium">Assets</span>
             </button>
             <button
-              onClick={() => setShowTextFormat(!showTextFormat)}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors group"
             >
               <span className="text-xl group-hover:scale-110 transition-transform">

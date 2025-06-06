@@ -159,7 +159,7 @@ const LayerPanel = ({ canvas, onLayerUpdate }) => {
   };
 
   return (
-    <div className="w-64 bg-white border-l p-4 overflow-y-auto text-black">
+    <div className="w-64 bg-violet-100 border-l p-4 overflow-y-auto  text-black">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-gray-900">Layers</h3>
         <div className="flex gap-2">
