@@ -1,16 +1,31 @@
-import React from "react";
+import React, { useState } from "react";
 import CanvasEditor from "./CanvasEditor";
+import TextFormatPanel from "./components/TextFormatPanel";
 
 const App = () => {
+  const [selectedObject, setSelectedObject] = useState(null);
+  const [showTextFormat, setShowTextFormat] = useState(false);
+
+  const handleObjectSelected = (object) => {
+    setSelectedObject(object);
+    setShowTextFormat(object?.type === "textbox");
+  };
+
+  const handleFormatChange = (property, value) => {
+    if (!selectedObject || selectedObject.type !== "textbox") return;
+    selectedObject.set(property, value);
+    selectedObject.canvas.renderAll();
+  };
+
   return (
-    <div className="flex flex-col h-screen w-full bg-gray-50">
+    <div className="flex flex-col h-screen w-full bg-gray-50 select-none">
       {/* Topbar */}
       <header className="flex items-center justify-between bg-gradient-to-r from-red-600 to-red-500 h-16 px-6 shadow-md text-white">
         <div className="flex items-center gap-3">
           <div className="bg-white rounded-full w-10 h-10 flex items-center justify-center mr-2 shadow-sm transition-transform hover:scale-105">
             <span className="text-red-600 text-2xl font-bold">🛕</span>
           </div>
-          <span className="text-2xl font-bold tracking-wide">Jaincanvas</span>
+          <span className="text-2xl font-bold tracking-wide">JainCanvas</span>
         </div>
         <div className="flex items-center gap-4">
           <button className="px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors text-sm font-medium">
@@ -46,7 +61,10 @@ const App = () => {
               </span>
               <span className="font-medium">Assets</span>
             </button>
-            <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors group">
+            <button
+              onClick={() => setShowTextFormat(!showTextFormat)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors group"
+            >
               <span className="text-xl group-hover:scale-110 transition-transform">
                 🔤
               </span>
@@ -76,10 +94,22 @@ const App = () => {
           </div>
         </aside>
 
-        {/* Canvas Area */}
-        <main className="flex-1 flex flex-col items-center justify-start p-4 overflow-auto bg-gray-50">
-          <CanvasEditor />
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col items-center justify-start p-4 bg-gray-50 h-full overflow-hidden">
+          <div className="w-full max-w-6xl">
+            <CanvasEditor onObjectSelected={handleObjectSelected} />
+          </div>
         </main>
+
+        {/* Text Format Panel */}
+        {showTextFormat && (
+          <div className="w-64 bg-white border-l p-4 shadow-sm">
+            <TextFormatPanel
+              onFormatChange={handleFormatChange}
+              selectedObject={selectedObject}
+            />
+          </div>
+        )}
       </div>
 
       {/* Copyright Footer */}
